@@ -1,0 +1,269 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Firefox RFP Camera Reproducer</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    button { margin: 4px; padding: 8px 12px; }
+    .grid { display: grid; grid-template-columns: repeat(2, 640px); gap: 16px; margin-top: 16px; }
+    video, canvas { width: 640px; height: 480px; background: #111; }
+    .label { font-weight: 600; margin-bottom: 4px; }
+    #status { white-space: pre-wrap; font-family: monospace; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h2>Firefox RFP Camera Reproducer</h2>
+
+  <button id="start">Start camera</button>
+  <button data-mode="direct2d">2D drawImage</button>
+  <button data-mode="readback2d">2D getImageData → putImageData</button>
+  <button data-mode="webgl">WebGL texture only</button>
+  <button data-mode="webglreadback">WebGL readPixels → 2D</button>
+  <button id="stop">Stop processing</button>
+
+  <div id="status">Camera not started.</div>
+
+  <div class="grid">
+    <div>
+      <div class="label">1. Direct &lt;video&gt;</div>
+      <video id="video" autoplay playsinline muted></video>
+    </div>
+
+    <div>
+      <div class="label">2. Processed output</div>
+      <canvas id="out" width="640" height="480"></canvas>
+    </div>
+
+    <div>
+      <div class="label">Hidden 2D working canvas</div>
+      <canvas id="work2d" width="640" height="480"></canvas>
+    </div>
+
+    <div>
+      <div class="label">WebGL working canvas</div>
+      <canvas id="glcanvas" width="640" height="480"></canvas>
+    </div>
+  </div>
+
+<script>
+const W = 640, H = 480;
+const video = document.getElementById('video');
+const out = document.getElementById('out');
+const outCtx = out.getContext('2d', { willReadFrequently: true });
+const work = document.getElementById('work2d');
+const workCtx = work.getContext('2d', { willReadFrequently: true });
+const glCanvas = document.getElementById('glcanvas');
+const statusEl = document.getElementById('status');
+
+let stream = null;
+let mode = null;
+let raf = null;
+
+function status(s) {
+  statusEl.textContent = s;
+  console.log(s);
+}
+
+document.getElementById('start').onclick = async () => {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      width: { ideal: W },
+      height: { ideal: H },
+      frameRate: { ideal: 30 }
+    },
+    audio: false
+  });
+
+  video.srcObject = stream;
+  await video.play();
+
+  const track = stream.getVideoTracks()[0];
+  status(
+    "Camera started\n" +
+    "device: " + track.label + "\n" +
+    "settings: " + JSON.stringify(track.getSettings(), null, 2)
+  );
+};
+
+function checksum(bytes) {
+  let h = 2166136261 >>> 0;
+  const step = Math.max(1, Math.floor(bytes.length / 4096));
+  for (let i = 0; i < bytes.length; i += step) {
+    h ^= bytes[i];
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+function stopLoop() {
+  mode = null;
+  if (raf) cancelAnimationFrame(raf);
+  raf = null;
+}
+
+document.getElementById('stop').onclick = () => {
+  stopLoop();
+  status("Processing stopped. Direct video remains active.");
+};
+
+for (const btn of document.querySelectorAll('[data-mode]')) {
+  btn.onclick = () => {
+    stopLoop();
+    mode = btn.dataset.mode;
+    status("Mode: " + mode);
+    frameLoop();
+  };
+}
+
+function frameLoop() {
+  if (!mode) return;
+  if (video.readyState < 2) {
+    raf = requestAnimationFrame(frameLoop);
+    return;
+  }
+
+  try {
+    if (mode === 'direct2d') {
+      outCtx.drawImage(video, 0, 0, W, H);
+    }
+
+    if (mode === 'readback2d') {
+      workCtx.drawImage(video, 0, 0, W, H);
+      const img = workCtx.getImageData(0, 0, W, H);
+      outCtx.putImageData(img, 0, 0);
+
+      if ((performance.now() | 0) % 1000 < 20) {
+        status("Mode: readback2d\npixel checksum: " + checksum(img.data));
+      }
+    }
+
+    if (mode === 'webgl' || mode === 'webglreadback') {
+      renderWebGL();
+
+      if (mode === 'webgl') {
+        outCtx.clearRect(0, 0, W, H);
+        outCtx.drawImage(glCanvas, 0, 0);
+      } else {
+        const pixels = new Uint8Array(W * H * 4);
+        gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+        // WebGL origin is bottom-left; flip vertically while copying.
+        const flipped = new Uint8ClampedArray(pixels.length);
+        const row = W * 4;
+        for (let y = 0; y < H; y++) {
+          const src = (H - 1 - y) * row;
+          flipped.set(pixels.subarray(src, src + row), y * row);
+        }
+
+        const img = new ImageData(flipped, W, H);
+        outCtx.putImageData(img, 0, 0);
+
+        if ((performance.now() | 0) % 1000 < 20) {
+          status("Mode: webglreadback\npixel checksum: " + checksum(pixels));
+        }
+      }
+    }
+  } catch (e) {
+    status("ERROR in " + mode + ":\n" + e.stack);
+  }
+
+  raf = requestAnimationFrame(frameLoop);
+}
+
+// Minimal WebGL pipeline: video -> texture -> framebuffer
+const gl = glCanvas.getContext('webgl', {
+  preserveDrawingBuffer: true,
+  antialias: false
+});
+
+if (!gl) {
+  status("WebGL unavailable");
+}
+
+function shader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    throw new Error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+let program, texture;
+if (gl) {
+  const vs = shader(gl.VERTEX_SHADER, `
+    attribute vec2 p;
+    attribute vec2 uv;
+    varying vec2 vuv;
+    void main() {
+      gl_Position = vec4(p, 0.0, 1.0);
+      vuv = uv;
+    }
+  `);
+
+  const fs = shader(gl.FRAGMENT_SHADER, `
+    precision mediump float;
+    uniform sampler2D tex;
+    varying vec2 vuv;
+    void main() {
+      gl_FragColor = texture2D(tex, vuv);
+    }
+  `);
+
+  program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  gl.useProgram(program);
+
+  const data = new Float32Array([
+    -1,-1, 0,1,
+     1,-1, 1,1,
+    -1, 1, 0,0,
+    -1, 1, 0,0,
+     1,-1, 1,1,
+     1, 1, 1,0
+  ]);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+
+  const p = gl.getAttribLocation(program, 'p');
+  const uv = gl.getAttribLocation(program, 'uv');
+
+  gl.enableVertexAttribArray(p);
+  gl.vertexAttribPointer(p, 2, gl.FLOAT, false, 16, 0);
+
+  gl.enableVertexAttribArray(uv);
+  gl.vertexAttribPointer(uv, 2, gl.FLOAT, false, 16, 8);
+
+  texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
+function renderWebGL() {
+  gl.viewport(0, 0, W, H);
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    video
+  );
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+</script>
+</body>
+</html>
