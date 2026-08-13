@@ -9,6 +9,21 @@
 
   - first click "Start camera", then "2D getImageData -> putImageData"
   - glitch seen
+  - not important what the file does, just the function of interest is `getImageData()`
+  - path:
+
+    ```
+    ctx.getImageData()
+        -> CanvasRenderingContext2D::GetImageData()
+        -> GetImageDataArray()
+        -> ImageExtractionResult()
+        -> IsImageExtractionAllowed()
+        -> canvas permission = DENY_ACTION
+        -> IsImageExtractionAllowed() returns false
+        -> ImageExtractionResult() returns Placeholder
+        -> GetImageDataArray() writes placeholder into ImageData.data
+        -> GetImageData() returns that ImageData
+    ```
 
 - when `privacy.resistFingerprinting = true`
   - `nsRFPService::IsRFPEnabledFor()` returns true
