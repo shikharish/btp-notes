@@ -1,0 +1,9 @@
+Investigation in progress. The original report describes the first Betterer run writing results successfully and the second failing to read them after ESLint is added. Expected: generated results can be consumed on the next run.
+
+Source will be pinned to `07680bec9b214b09591fa9e0dc3efbc263fbf333`, explicitly linked in the original body. The body already suggests file-size/buffer problems and points at `results/reader.ts` and `require.ts`; those are disclosed solution hints, not independent discoveries. No comments, issue timeline, fixes or later source consulted.
+
+Experiment 1 hypothesis: inspecting the exact historical loading/serialization pipeline will identify a concrete input-sensitive failure that can be challenged with actual CLI runs. Predicted result: generated result content, or a source loading limit, explains second-run failure. Reporter project/results, exact package versions, OS and Node version remain unavailable; Windows path is shown in original output.
+
+Experiment 2 hypothesis: `${…}` in an ESLint diagnostic remains executable interpolation after printing, since `safe-string-literal` 1.0.1 does not escape `$`. Predicted result: first run succeeds, second throws the reported read error, regardless of size. A control lacking interpolation should pass even at roughly 15,000 issues. First try a reported type-aware rule with a string literal type; retain any failure of that candidate. The fixture is reconstructed; original result contents are unavailable.
+
+Setup correction: the first generated runtime used `esModuleInterop: true`, which changed Commander namespace imports and failed before the pipeline (`candidate-first.log` was initially that setup failure). I checked historical `tsconfig.json`, corrected transpilation to ES5/CommonJS/importHelpers/alwaysStrict without interop, and rebuilt from the unchanged source. No debugger was used.
