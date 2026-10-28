@@ -1,6 +1,6 @@
 # Bug investigation summary
 
-**30 reports investigated: 16 bugs found, 9 expected behaviors, 5 unresolved.**
+**30 reports investigated: 17 bugs found, 8 expected behaviors, 5 unresolved.**
 
 Reproduction was recorded for 29 cases, including narrowed or partial claims; one was not reproduced. The table and individual reports explain those boundaries.
 
@@ -13,7 +13,7 @@ Reproduction means the behavior was observed in the recorded environment, someti
 | B1842324 | [Lodash #286](https://github.com/lodash/lodash/issues/286) | Chained `union` returns a wrapper; `.value()` extracts the array. | Expected behavior | Yes | [Read report](reports/B1842324.md) |
 | B1843993 | [Lodash #4400](https://github.com/lodash/lodash/issues/4400) | Trailing debounce initially returns undefined, then the last invocation's result. | Expected behavior | Yes | [Read report](reports/B1843993.md) |
 | B1845051 | [Lodash #5475](https://github.com/lodash/lodash/issues/5475) | Historical Deno requires import mappings for compatible TypeScript declarations. | Expected behavior | Yes | [Read report](reports/B1845051.md) |
-| B1845523 | [Lodash #5985](https://github.com/lodash/lodash/issues/5985) | `sumBy` preserves a singleton boolean instead of coercing it to a number. | Expected behavior | Yes | [Read report](reports/B1845523.md) |
+| B1845523 | [Lodash #5985](https://github.com/lodash/lodash/issues/5985) | `sumBy` returns a singleton boolean despite its documented numeric return type. | Bug found — documentation/runtime mismatch | Yes | [Read report](reports/B1845523.md) |
 | B1845623 | [Lodash #6084](https://github.com/lodash/lodash/issues/6084) | Cloning a Vue-proxied Map loses entries in Node/jsdom; required Proxy support is unclear. | Unresolved | Yes | [Read report](reports/B1845623.md) |
 | B2108616 | [Moment #3878](https://github.com/moment/moment/issues/3878) | `utcOffset` mistakes a date fragment for a timezone offset. | Bug found | Yes | [Read report](reports/B2108616.md) |
 | B2108664 | [Moment #3920](https://github.com/moment/moment/issues/3920) | RFC parsing replaces nonzero numeric timezone offsets with zero. | Bug found | Yes | [Read report](reports/B2108664.md) |

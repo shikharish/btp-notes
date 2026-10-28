@@ -49,3 +49,23 @@ Sent to `worker` on 2026-10-28 at 08:22:09 UTC for the first 17 reports. Workers
 ```text
 Add a concise 'How I reproduced and debugged it' section to this existing case's REPORT.md. Use only its saved scripts/logs/source: exact recorded commands, actual tools, observations, source-call navigation and decisive controls. Distinguish logging/instrumentation from debugger breakpoints; never invent GDB use or unrecorded chronological actions. If details already exist, summarize and point to them rather than duplicating them. Keep findings unchanged; edit REPORT.md only. No new files, source changes, network, other cases, commit or push.
 ```
+
+## Return-type verdict review: B1845523
+
+Sent to `worker` during the correction. Read-only review; no new experiments.
+
+```text
+Read-only verdict review of this one case. Read input/issue.md, REPORT.md, the pinned sumBy documentation/JSDoc, relevant historical tests and implementation, and evidence/contract-correction-check.log. Decide independently whether Expected behavior, Bug found (state exact scope), or Unresolved is justified. Reconcile the documented numeric return type with historical noncoercion/string-result tests and the original singleton-boolean complaint. Do not assume either the previous verdict or GitHub labels are correct; distinguish a demonstrated docs/runtime mismatch from a proven obligation to implement automatic boolean conversion. Use only this workspace's original input and local historical source/evidence. No network, comments, fixes, other cases, new experiments, delegation, file edits, commit or push. Return a concise recommendation with exact file/line citations and identify any reasoning error in the existing report.
+```
+
+## Remaining Expected behavior reviews
+
+Sent to two `worker` agents. Read-only review of the other eight Expected behavior verdicts.
+
+```text
+Read-only classification audit of four current Expected behavior reports: reports/B1842324.md, reports/B1843993.md, reports/B1845051.md, reports/B1844953.md. You are explicitly authorized to inspect these four reports and their corresponding bug-runs/*/<ID>/input and pinned source/docs/tests only. Check whether any verdict dismisses an applicable documented promise merely because existing tests or implementation support the behavior. Tests passing is not by itself proof of correctness; equally, do not manufacture unrelated documentation defects or assume a requested behavior is promised. Return retain/follow-up-needed for each ID with one reason and exact historical file/line citations. No edits, new experiments, network, unrelated cases, delegation, commit or push.
+```
+
+```text
+Read-only classification audit of four current Expected behavior reports: reports/B2109984.md, reports/B2110241.md, reports/B2110581.md, reports/B1622927.md. You are explicitly authorized to inspect these four reports and their corresponding bug-runs/*/<ID>/input and pinned source/docs/tests only. Check whether any verdict dismisses an applicable documented promise merely because existing tests or implementation support the behavior. Tests passing is not by itself proof of correctness; equally, do not manufacture unrelated documentation defects or assume a requested behavior is promised. Return retain/follow-up-needed for each ID with one reason and exact historical file/line citations. No edits, new experiments, network, unrelated cases, delegation, commit or push.
+```
