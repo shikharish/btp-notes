@@ -4,7 +4,7 @@
 !README.md
 !AGENTS.md
 !classify.py
-!pi_runner.py
+!codex_runner.py
 !evidence.py
 !test_*.py
 !prompts/

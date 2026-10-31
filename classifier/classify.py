@@ -16,10 +16,10 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 try:
-    from . import evidence, pi_runner
+    from . import evidence, codex_runner
 except ImportError:  # Also support: python classifier/classify.py ...
     import evidence
-    import pi_runner
+    import codex_runner
 
 HERE = Path(__file__).resolve().parent
 FIELDS = ('record_id', 'url', 'project', 'title', 'body')
@@ -92,14 +92,14 @@ def read_input(files):
                 for number, line in enumerate(stream, 1):
                     if line.strip():
                         try:
-                            yield normalize(pi_runner._loads(line))
+                            yield normalize(codex_runner._loads(line))
                         except (ValueError, TypeError) as exc:
                             raise ValueError(f'{path}:{number}: {exc}') from exc
         return
     try:
         duckdb = importlib.import_module('duckdb')
     except ImportError as exc:
-        raise RuntimeError('Parquet needs DuckDB: uv run --with duckdb==2.0.0 classifier/classify.py ...') from exc
+        raise RuntimeError('Parquet needs DuckDB: uv run --no-project --with duckdb==2.0.0 python classify.py ...') from exc
     db = duckdb.connect()
     try:
         db.execute("SET memory_limit='2GB'")
@@ -132,10 +132,10 @@ class Store:
                     category TEXT, metrics TEXT, vagueness TEXT, error TEXT);
                 CREATE TABLE IF NOT EXISTS identities(record_id TEXT, source_id TEXT,
                     PRIMARY KEY(record_id,source_id));''')
-            code = [HERE / n for n in ('classify.py', 'pi_runner.py', 'evidence.py', 'prompts/bug.md', 'prompts/vagueness.md')]
+            code = [HERE / n for n in ('classify.py', 'codex_runner.py', 'evidence.py', 'prompts/bug.md', 'prompts/vagueness.md')]
             config = encoded({'pipeline': {p.relative_to(HERE).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in code},
                               'input': [{'path': str(p), 'bytes': p.stat().st_size, 'mtime_ns': p.stat().st_mtime_ns} for p in files],
-                              'models': {'type': 'openai-codex/gpt-6-luna:high', 'grade': 'openai-codex/gpt-6-luna:max'}})
+                              'models': {'type': 'codex/openai/gpt-6-luna:high', 'grade': 'codex/openai/gpt-6-luna:max'}})
             prior = db.execute('SELECT value FROM config').fetchone()
             if prior and prior[0] != config:
                 raise ValueError('Input or classifier changed. Use a new output directory; do not overwrite old results.')
@@ -196,9 +196,9 @@ class Store:
             writer = csv.writer(mapping)
             writer.writerow(['record_id', 'source_id', 'url'])
             for row in db.execute('SELECT * FROM reports ORDER BY rowid'):
-                source = pi_runner._loads(row['source'])
+                source = codex_runner._loads(row['source'])
                 for identity in db.execute('SELECT source_id FROM identities WHERE record_id=? ORDER BY source_id', [row['record_id']]):
-                    writer.writerow([row['record_id'], pi_runner._loads(identity['source_id']), source['url']])
+                    writer.writerow([row['record_id'], codex_runner._loads(identity['source_id']), source['url']])
                 complete = row['category'] is not None and (row['category'] != 'bug' or row['vagueness'] is not None)
                 if complete:
                     value = None
@@ -221,7 +221,7 @@ class Store:
 def batches(rows, stage='type'):
     batch, size, images = [], 0, 0
     for row in rows:
-        packet = pi_runner._packet(stage, [row])[0]
+        packet = codex_runner._packet(stage, [row])[0]
         length = len(encoded(packet)) + sum(Path(p).stat().st_size for p in row.get('files', []) if Path(p).suffix.lower() not in ('.png', '.jpg', '.jpeg', '.gif', '.webp'))
         pictures = sum(Path(p).suffix.lower() in ('.png', '.jpg', '.jpeg', '.gif', '.webp') for p in row.get('files', []))
         if length > 200000:
@@ -240,7 +240,7 @@ def process(batch, store):
     def infer(stage, records):
         attempts = store.root / 'attempts'
         attempts.mkdir(exist_ok=True)
-        return pi_runner.infer(stage, records, attempts / (stage + '-' + uuid.uuid4().hex))
+        return codex_runner.infer(stage, records, attempts / (stage + '-' + uuid.uuid4().hex))
     saved = store.rows(batch)
     new = [r for r in batch if saved[r['record_id']]['category'] is None]
     if new:
@@ -258,7 +258,7 @@ def run(args):
     files = input_files(args.input)
     store = Store(args.out, files)
     print('Checking Luna/high and Luna/max availability (no classification yet)...', flush=True)
-    pi_runner.check()
+    codex_runner.check()
     pending, stop, error = {}, False, None
     source = iter(batches(store.select(files, args.limit, args.retry_failed)))
     try:
@@ -294,7 +294,7 @@ def run(args):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    commands.add_parser('check', help='Check own Pi login and exact models; no inference')
+    commands.add_parser('check', help='Check own Codex login and exact models; no inference')
     task = commands.add_parser('run', help='Classify explicit input and preserve progress')
     task.add_argument('input', type=Path)
     task.add_argument('--out', type=Path, required=True)
@@ -306,7 +306,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.command == 'check':
-            print(json.dumps(pi_runner.check(), indent=2))
+            print(json.dumps(codex_runner.check(), indent=2))
         else:
             if args.limit is not None and args.limit < 1:
                 raise ValueError('--limit must be positive')

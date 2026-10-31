@@ -1,4 +1,4 @@
-"""Offline pipeline tests. Pi inference and HTTP collection are always mocked."""
+"""Offline pipeline tests. Codex inference and HTTP collection are always mocked."""
 import argparse
 import csv
 import importlib
@@ -76,8 +76,8 @@ class Pipeline(unittest.TestCase):
                  'external': 'yes' if r['title'] == 'Evidence needed' else 'no'} for r in rows]
 
     def run_mocked(self, args=None, infer=None):
-        with patch.object(app.pi_runner, 'check', return_value=[]), \
-                patch.object(app.pi_runner, 'infer', side_effect=infer or self.infer), \
+        with patch.object(app.codex_runner, 'check', return_value=[]), \
+                patch.object(app.codex_runner, 'infer', side_effect=infer or self.infer), \
                 patch.object(app.evidence, 'collect', return_value={'evidence': [], 'files': [], 'optional_files': []}):
             app.run(args or self.args())
 
